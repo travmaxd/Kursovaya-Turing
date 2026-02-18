@@ -1,0 +1,41 @@
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+
+# --- Virtual environment ---
+venv/
+.env/
+.venv/
+
+# --- IDE/Editor files ---
+.vscode/
+.idea/
+*.sublime-workspace
+*.sublime-project
+
+# --- Logs and temp files ---
+*.log
+*.tmp
+*.bak
+.DS_Store
+
+# --- Pytest / Coverage ---
+.pytest_cache/
+.coverage
+htmlcov/
+.cache/
+
+# --- Distribution / packaging ---
+build/
+dist/
+*.egg-info/
+*.egg
+
+# --- Jupyter / Notebooks ---
+.ipynb_checkpoints/
+
+# --- OS generated ---
+Thumbs.db
