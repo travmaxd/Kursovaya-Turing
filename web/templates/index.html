@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Машина Тьюринга — Палиндром</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+  <style>
+    body { 
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      padding: 20px 0;
+    }
+    .container {
+      background: white;
+      border-radius: 15px;
+      padding: 30px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+      margin-top: 20px;
+    }
+    .tape-container {
+      background: #f8f9fa;
+      border: 2px solid #dee2e6;
+      border-radius: 10px;
+      padding: 20px;
+      margin: 20px 0;
+    }
+    .tape {
+      display: flex;
+      justify-content: center;
+      align-items: flex-end;
+      flex-wrap: wrap;
+      gap: 8px;
+      min-height: 100px;
+    }
+    .cell {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .cell-symbol {
+      border: 2px solid #6c757d;
+      border-radius: 8px;
+      width: 45px;
+      height: 45px;
+      text-align: center;
+      font-weight: bold;
+      font-size: 18px;
+      line-height: 41px;
+      background: white;
+      transition: all 0.3s ease;
+    }
+    .cell-symbol.current {
+      border-color: #dc3545;
+      background: #dc3545;
+      color: white;
+      transform: scale(1.1);
+    }
+    .cell-index {
+      font-size: 11px;
+      color: #6c757d;
+      margin-top: 5px;
+    }
+    .head-pointer {
+      color: #dc3545;
+      font-weight: bold;
+      margin-top: 3px;
+    }
+    .step-info {
+      background: #e9ecef;
+      border-radius: 8px;
+      padding: 15px;
+      margin: 10px 0;
+      font-family: 'Courier New', monospace;
+    }
+    .controls {
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+      margin: 20px 0;
+    }
+    .btn-control {
+      min-width: 120px;
+    }
+    .result-success {
+      background: #d4edda;
+      border-color: #c3e6cb;
+      color: #155724;
+    }
+    .result-error {
+      background: #f8d7da;
+      border-color: #f5c6cb;
+      color: #721c24;
+    }
+    .progress-info {
+      text-align: center;
+      margin: 10px 0;
+      font-weight: bold;
+    }
+    .history-container {
+      margin-top: 40px;
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <div class="text-center mb-4">
+    <h1 class="text-primary">Машина Тьюринга</h1>
+    <p class="lead">Проверка слов на палиндром</p>
+  </div>
+
+  <div class="row justify-content-center">
+    <div class="col-md-6">
+      <div class="input-group mb-4">
+        <input id="word" type="text" class="form-control form-control-lg" 
+               placeholder="Введите слово для проверки" 
+               onkeypress="if(event.key=='Enter') checkWord()">
+        <button class="btn btn-primary btn-lg" onclick="checkWord()">
+          Проверить
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div id="result" class="alert d-none"></div>
+
+  <div class="tape-container">
+    <h5 class="text-center mb-3">Лента машины Тьюринга</h5>
+    <div id="tape" class="tape">
+      <div class="text-muted">Введите слово для отображения ленты...</div>
+    </div>
+  </div>
+
+  <div id="stepInfo" class="step-info d-none">
+    <div><strong>Действие:</strong> <span id="actionText">-</span></div>
+    <div><strong>Состояние:</strong> <span id="stateText">-</span></div>
+    <div><strong>Позиция:</strong> <span id="positionText">-</span></div>
+  </div>
+
+  <div class="progress-info">
+    Шаг <span id="currentStep">0</span> из <span id="totalSteps">0</span>
+  </div>
+
+  <div id="controls" class="controls d-none">
+    <button class="btn btn-outline-secondary btn-control" id="firstStep">Первый</button>
+    <button class="btn btn-outline-primary btn-control" id="prevStep">Назад</button>
+    <button class="btn btn-outline-success btn-control" id="autoStep">Авто</button>
+    <button class="btn btn-outline-primary btn-control" id="nextStep">Вперёд </button>
+    <button class="btn btn-outline-secondary btn-control" id="lastStep">Последний </button>
+  </div>
+
+  <div class="history-container">
+    <div class="d-flex justify-content-between align-items-center mb-2">
+      <h4>История проверок</h4>
+      <button class="btn btn-sm btn-outline-danger" onclick="clearHistory()">Очистить</button>
+    </div>
+    <table class="table table-striped" id="historyTable">
+      <thead>
+        <tr>
+          <th>Слово</th>
+          <th>Результат</th>
+          <th>Шагов</th>
+          <th>Дата</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td colspan="4" class="text-muted text-center">Загрузка истории...</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+let steps = [];
+let currentStep = 0;
+let autoInterval = null;
+
+async function loadHistory() {
+  const tableBody = document.querySelector("#historyTable tbody");
+  tableBody.innerHTML = `<tr><td colspan="4" class="text-muted text-center">Загрузка...</td></tr>`;
+
+  try {
+    const res = await fetch('/history');
+    const data = await res.json();
+
+    if (!data || data.length === 0) {
+      tableBody.innerHTML = `<tr><td colspan="4" class="text-muted text-center">История пуста</td></tr>`;
+      return;
+    }
+
+    tableBody.innerHTML = "";
+    data.forEach(row => {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td>${row.word}</td>
+        <td>${row.is_palindrome ? 'Палиндром' : 'Не палиндром'}</td>
+        <td>${row.steps}</td>
+        <td>${row.timestamp}</td>
+      `;
+      tableBody.appendChild(tr);
+    });
+  } catch (err) {
+    tableBody.innerHTML = `<tr><td colspan="4" class="text-danger text-center">Ошибка загрузки истории</td></tr>`;
+  }
+}
+
+async function clearHistory() {
+  if (!confirm("Очистить всю историю проверок?")) return;
+  await fetch("/history/clear", { method: "DELETE" });
+  loadHistory();
+}
+
+function renderStep(stepIndex) {
+  const tapeDiv = document.getElementById('tape');
+  const stepInfoDiv = document.getElementById('stepInfo');
+  const actionText = document.getElementById('actionText');
+  const stateText = document.getElementById('stateText');
+  const positionText = document.getElementById('positionText');
+  const currentStepSpan = document.getElementById('currentStep');
+  const totalStepsSpan = document.getElementById('totalSteps');
+  const resultDiv = document.getElementById('result');
+
+  tapeDiv.innerHTML = '';
+
+  if (steps.length === 0) {
+    stepInfoDiv.classList.add('d-none');
+    return;
+  }
+
+  const step = steps[stepIndex];
+  const tapeStr = step.tape.split('');
+
+  // Отображаем ленту
+  tapeStr.forEach((symbol, i) => {
+    const cellDiv = document.createElement('div');
+    cellDiv.className = 'cell';
+    
+    const symbolDiv = document.createElement('div');
+    symbolDiv.className = 'cell-symbol' + (i === step.head ? ' current' : '');
+    symbolDiv.textContent = symbol === '_' ? ' ' : symbol;
+    
+    const indexDiv = document.createElement('div');
+    indexDiv.className = 'cell-index';
+    indexDiv.textContent = i;
+    
+    cellDiv.appendChild(symbolDiv);
+    cellDiv.appendChild(indexDiv);
+    
+    if (i === step.head) {
+      const pointerDiv = document.createElement('div');
+      pointerDiv.className = 'head-pointer';
+      pointerDiv.textContent = '▼';
+      cellDiv.appendChild(pointerDiv);
+    }
+    
+    tapeDiv.appendChild(cellDiv);
+  });
+
+  // Обновляем информацию о шаге
+  actionText.textContent = step.action;
+  stateText.textContent = step.state;
+  positionText.textContent = step.head;
+  currentStepSpan.textContent = stepIndex + 1;
+  totalStepsSpan.textContent = steps.length;
+  stepInfoDiv.classList.remove('d-none');
+
+  updateControls();
+
+  // Если дошли до конца — показываем результат
+  if (stepIndex === steps.length - 1) {
+    showFinalResult();
+  } else {
+    resultDiv.classList.add("d-none");
+  }
+}
+
+function showFinalResult() {
+  const resultDiv = document.getElementById('result');
+  const data = window.finalData;
+  if (!data) return;
+
+  resultDiv.className = data.is_palindrome ? 
+    "alert alert-success result-success" : 
+    "alert alert-danger result-error";
+  resultDiv.textContent = data.result;
+  resultDiv.classList.remove("d-none");
+
+  // После завершения добавим запись в историю
+  loadHistory();
+}
+
+function updateControls() {
+  document.getElementById('firstStep').disabled = currentStep === 0;
+  document.getElementById('prevStep').disabled = currentStep === 0;
+  document.getElementById('nextStep').disabled = currentStep === steps.length - 1;
+  document.getElementById('lastStep').disabled = currentStep === steps.length - 1;
+
+  const autoBtn = document.getElementById('autoStep');
+  if (autoInterval) {
+    autoBtn.textContent = "⏸ Пауза";
+    autoBtn.classList.remove('btn-outline-success');
+    autoBtn.classList.add('btn-danger');
+  } else {
+    autoBtn.textContent = "Авто ▶";
+    autoBtn.classList.remove('btn-danger');
+    autoBtn.classList.add('btn-outline-success');
+  }
+}
+
+async function checkWord() {
+  const word = document.getElementById('word').value.trim();
+  const resultDiv = document.getElementById('result');
+  
+  if (!word) {
+    resultDiv.className = "alert alert-warning";
+    resultDiv.textContent = "Введите слово для проверки!";
+    resultDiv.classList.remove("d-none");
+    return;
+  }
+
+  resultDiv.className = "alert alert-info";
+  resultDiv.textContent = "Машина Тьюринга работает...";
+  resultDiv.classList.remove("d-none");
+
+  try {
+    const res = await fetch('/check', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({word})
+    });
+    
+    const data = await res.json();
+
+    if (data.error) {
+      resultDiv.className = "alert alert-danger";
+      resultDiv.textContent = data.error;
+      return;
+    }
+
+    steps = data.steps;
+    window.finalData = data;
+    currentStep = 0;
+    
+    document.getElementById('controls').classList.remove('d-none');
+    renderStep(currentStep);
+
+  } catch (err) {
+    resultDiv.className = "alert alert-danger";
+    resultDiv.textContent = "Ошибка соединения: " + err.message;
+  }
+}
+
+// Управление шагами
+document.getElementById('firstStep').onclick = () => { currentStep = 0; renderStep(currentStep); };
+document.getElementById('prevStep').onclick = () => { if (currentStep > 0) { currentStep--; renderStep(currentStep); } };
+document.getElementById('nextStep').onclick = () => { if (currentStep < steps.length - 1) { currentStep++; renderStep(currentStep); } };
+document.getElementById('lastStep').onclick = () => { currentStep = steps.length - 1; renderStep(currentStep); };
+
+document.getElementById('autoStep').onclick = () => {
+  if (autoInterval) {
+    clearInterval(autoInterval);
+    autoInterval = null;
+    updateControls();
+    return;
+  }
+  autoInterval = setInterval(() => {
+    if (currentStep < steps.length - 1) {
+      currentStep++;
+      renderStep(currentStep);
+    } else {
+      clearInterval(autoInterval);
+      autoInterval = null;
+      updateControls();
+    }
+  }, 700);
+  updateControls();
+};
+
+document.getElementById('word').focus();
+loadHistory();
+</script>
+</body>
+</html>
